@@ -3,10 +3,12 @@
 #include <string.h>
 #include <errno.h>
 
+#include <unistd.h>
 #include <sys/types.h>          /* See NOTES */
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/ip.h> /* superset of previous */
+#include <arpa/inet.h>
 
 #define LISTEN_BACKLOG 50
 #define handle_error(msg) \
@@ -14,8 +16,10 @@
 
 int main(int argc, char ** argv)
 {
+    int i = 0;
     int sockfd = 0;
-    char buff[256] = { 0 };
+    char read_buff[256] = { 0 };
+    char write_buff[256] = { 0 };
     struct sockaddr_in server_addr;
 
     memset(&server_addr, 0, sizeof(server_addr));
@@ -33,21 +37,17 @@ int main(int argc, char ** argv)
         handle_error("connect");
     }
 
-    while(1)
+    for(i = 0; i < 10; ++i)
     {
-        write(sockfd, "hello ", sizeof("hello "));
-    //    read(sockfd, buff, sizeof(buff));
-    //    printf("%s\n", buff);
-        usleep(100);
+        memset(write_buff, 0, sizeof(write_buff));
+        sprintf(write_buff, "This is client send message:%d", i);
+        write(sockfd, write_buff, strlen(write_buff) + 1);
+
+        memset(read_buff, 0, sizeof(read_buff));
+        read(sockfd, read_buff, sizeof(read_buff));
+        printf("%s\n", read_buff);       
     }
-#if 0
-    while(1)
-    {
-        read(acceptfd, buff, sizeof(buff));
-        write(acceptfd, "world", sizeof("world"));
-        printf("%s", buff);
-    }
-#endif
+
     close(sockfd);
 
     return 0;
