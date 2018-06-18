@@ -1,6 +1,6 @@
 CC = gcc  
 LINK = gcc  
-CFLAGS = -g -Wall -rdynamic  
+CFLAGS = -g -Wall -rdynamic -lpthread 
 LIBS =
 
 SOURCES = $(wildcard *.c)  

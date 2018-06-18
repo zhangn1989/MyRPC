@@ -3,6 +3,8 @@
 #include <string.h>
 #include <errno.h>
 
+#include <pthread.h>
+
 #include <unistd.h>
 #include <sys/types.h>          /* See NOTES */
 #include <sys/socket.h>
@@ -14,18 +16,43 @@
 #define handle_error(msg) \
     do { perror(msg); exit(EXIT_FAILURE); } while (0)
 
-int main(int argc, char ** argv)
+void *thread_func(void *arg)
 {
     int i = 0;
+    int acceptfd = *(int *)arg;
+
+    ssize_t readret = 0;
+    char read_buff[256] = { 0 };
+    char write_buff[256] = { 0 };
+   
+    for(i = 0; i < 10; ++i)
+    {
+        memset(read_buff, 0, sizeof(read_buff));
+        readret = read(acceptfd, read_buff, sizeof(read_buff));
+        if(readret == 0)
+            break;
+
+        printf("thread id:%lu, recv message:%s\n", pthread_self(), read_buff);
+
+        memset(write_buff, 0, sizeof(write_buff));
+        sprintf(write_buff, "This is server send message:%d", i);
+        write(acceptfd, write_buff, sizeof(write_buff));
+    }
+    printf("\n");
+    close(acceptfd);
+    return NULL;
+}
+
+int main(int argc, char ** argv)
+{
     int sockfd = 0;
     int acceptfd = 0;
-    ssize_t readret = 0;
     socklen_t client_addr_len = 0;
     struct sockaddr_in server_addr, client_addr;
 
     char client_ip[16] = { 0 };
-    char read_buff[256] = { 0 };
-    char write_buff[256] = { 0 };
+
+    pthread_t tid;
 
     memset(&server_addr, 0, sizeof(server_addr));
     memset(&client_addr, 0, sizeof(client_addr));
@@ -62,22 +89,12 @@ int main(int argc, char ** argv)
         inet_ntop(AF_INET,&client_addr.sin_addr,client_ip,sizeof(client_ip)); 
         printf("client:%s:%d\n",client_ip,ntohs(client_addr.sin_port));
 
-        for(i = 0; i < 10; ++i)
+        if(pthread_create(&tid, NULL, thread_func, &acceptfd) != 0)
         {
-            memset(read_buff, 0, sizeof(read_buff));
-            readret = read(acceptfd, read_buff, sizeof(read_buff));
-            if(readret == 0)
-                break;
-            
-            printf("%s\n", read_buff);
-
-            memset(write_buff, 0, sizeof(write_buff));
-            sprintf(write_buff, "This is server send message:%d", i);
-            write(acceptfd, write_buff, sizeof(write_buff));
+            handle_error("pthread_create");
+            break;
         }
-      
-        printf("\n");
-        close(acceptfd);
+
         sleep(1);
     }
 
