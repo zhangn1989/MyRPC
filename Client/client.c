@@ -18,6 +18,7 @@ int main(int argc, char ** argv)
 {
     int i = 0;
     int sockfd = 0;
+    ssize_t readret = 0;
     char read_buff[256] = { 0 };
     char write_buff[256] = { 0 };
     struct sockaddr_in server_addr;
@@ -44,7 +45,9 @@ int main(int argc, char ** argv)
         write(sockfd, write_buff, strlen(write_buff) + 1);
 
         memset(read_buff, 0, sizeof(read_buff));
-        read(sockfd, read_buff, sizeof(read_buff));
+        readret = read(sockfd, read_buff, sizeof(read_buff));
+        if(readret == 0)
+            break;
         printf("%s\n", read_buff);       
     }
 
