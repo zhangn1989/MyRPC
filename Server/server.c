@@ -4,7 +4,7 @@
 #include <errno.h>
 
 #include <pthread.h>
-
+#include <semaphore.h>
 #include <unistd.h>
 #include <sys/types.h>          /* See NOTES */
 #include <sys/socket.h>
@@ -16,11 +16,16 @@
 #define handle_error(msg) \
     do { perror(msg); exit(EXIT_FAILURE); } while (0)
 
+sem_t sem;
+
 void *thread_func(void *arg)
 {
-    int i = 0;
     int acceptfd = *(int *)arg;
 
+    //sem += 1
+    sem_post(&sem);
+
+    int i = 0;
     ssize_t readret = 0;
     char read_buff[256] = { 0 };
     char write_buff[256] = { 0 };
@@ -75,14 +80,16 @@ int main(int argc, char ** argv)
         handle_error("listen");
     }
 
+    sem_init(&sem, 0, 0);
+
 
     while(1)
     {
         client_addr_len = sizeof(client_addr);
         if((acceptfd = accept(sockfd, (struct sockaddr *)&client_addr, &client_addr_len)) < 0)
         {
-            close(sockfd);
-            handle_error("accept");
+            perror("accept");
+            continue;
         }
        
         memset(client_ip, 0, sizeof(client_ip));
@@ -91,13 +98,18 @@ int main(int argc, char ** argv)
 
         if(pthread_create(&tid, NULL, thread_func, &acceptfd) != 0)
         {
-            handle_error("pthread_create");
-            break;
+            perror("pthread_create");
+            close(acceptfd);
+            continue;
         }
 
-        sleep(1);
+        //if(sem == 0) block
+        //wait for sem != 0
+        //unblock, sem -= 1
+        sem_wait(&sem);
     }
-
+    
+    sem_destroy(&sem);
     close(sockfd);
 
     return 0;
