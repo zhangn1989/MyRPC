@@ -12,9 +12,9 @@
 #include <netinet/ip.h> /* superset of previous */
 #include <arpa/inet.h>
 
+#include "public_head.h"
+
 #define LISTEN_BACKLOG 50
-#define handle_error(msg) \
-    do { perror(msg); exit(EXIT_FAILURE); } while (0)
 
 sem_t sem;
 
@@ -70,7 +70,9 @@ int main(int argc, char ** argv)
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     if(bind(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
     {
+		char buff[256] = { 0 };
         close(sockfd);
+		strerror_r(errno, buff, sizeof(buff));
         handle_error("bind");
     }
 
@@ -98,7 +100,7 @@ int main(int argc, char ** argv)
 
         if(pthread_create(&tid, NULL, thread_func, &acceptfd) != 0)
         {
-            perror("pthread_create");
+			handle_warning("pthread_create");
             close(acceptfd);
             continue;
         }

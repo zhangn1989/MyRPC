@@ -1,9 +1,15 @@
 CC = gcc  
 LINK = gcc  
-CFLAGS = -g -Wall -rdynamic -lpthread 
+CFLAGS = -g -Wall -rdynamic -lpthread -I../ 
 LIBS =
 
-SOURCES = $(wildcard *.c)  
+SRC_DIR = . ..
+SFIX = .c
+
+SOURCES := $(foreach x,${SRC_DIR},\
+       $(wildcard  \
+       $(addprefix  ${x}/*,${SFIX}) ) )
+#SOURCES = $(wildcard *.c)  
 OBJECTS = $(patsubst %.c, %.o, $(SOURCES))  
 TARGET = server
 

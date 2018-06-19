@@ -10,9 +10,9 @@
 #include <netinet/ip.h> /* superset of previous */
 #include <arpa/inet.h>
 
+#include "public_head.h"
+
 #define LISTEN_BACKLOG 50
-#define handle_error(msg) \
-    do { perror(msg); exit(EXIT_FAILURE); } while (0)
 
 int main(int argc, char ** argv)
 {

@@ -1,5 +1,5 @@
 DIRS = Server Client
-  
+
 all: subdirs  
   
 .PHONY: subdirs clean  
