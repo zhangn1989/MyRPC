@@ -3,28 +3,32 @@
 #include <string.h>
 #include <errno.h>
 
-#include <pthread.h>
+#include <signal.h>
 #include <semaphore.h>
 #include <unistd.h>
 #include <sys/types.h>          /* See NOTES */
+#include <sys/wait.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/ip.h> /* superset of previous */
 #include <arpa/inet.h>
 
 #include "public_head.h"
+#include "fileio.h"
 
 #define LISTEN_BACKLOG 50
 
-sem_t sem;
-
-void *thread_func(void *arg)
+static void grim_reaper(int sig)
 {
-    int acceptfd = *(int *)arg;
+	int saved_error = errno;
+	while (waitpid(-1, NULL, WNOHANG) >= 0)
+		continue;
 
-    //sem += 1
-    sem_post(&sem);
+	errno = saved_error;
+}
 
+static void handle_request(int acceptfd)
+{
     int i = 0;
     ssize_t readret = 0;
     char read_buff[256] = { 0 };
@@ -33,34 +37,40 @@ void *thread_func(void *arg)
     for(i = 0; i < 10; ++i)
     {
         memset(read_buff, 0, sizeof(read_buff));
-        readret = read(acceptfd, read_buff, sizeof(read_buff));
+        readret = readn(acceptfd, read_buff, sizeof(read_buff));
         if(readret == 0)
             break;
 
-        printf("thread id:%lu, recv message:%s\n", pthread_self(), read_buff);
+        printf("progress id:%d, recv message:%s\n", getpid(), read_buff);
 
         memset(write_buff, 0, sizeof(write_buff));
         sprintf(write_buff, "This is server send message:%d", i);
-        write(acceptfd, write_buff, sizeof(write_buff));
+        writen(acceptfd, write_buff, sizeof(write_buff));
     }
     printf("\n");
     close(acceptfd);
-    return NULL;
+    return;
 }
 
 int main(int argc, char ** argv)
 {
+	pid_t pid;
     int sockfd = 0;
     int acceptfd = 0;
     socklen_t client_addr_len = 0;
+	struct sigaction sa;
     struct sockaddr_in server_addr, client_addr;
 
     char client_ip[16] = { 0 };
 
-    pthread_t tid;
-
     memset(&server_addr, 0, sizeof(server_addr));
     memset(&client_addr, 0, sizeof(client_addr));
+
+	sigemptyset(&sa.sa_mask); 
+	sa.sa_flags = SA_RESTART;
+	sa.sa_handler = grim_reaper;
+	if(sigaction(SIGCHLD, &sa, NULL) < 0)
+		handle_error("sigaction");
 
     if((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
         handle_error("socket");
@@ -81,38 +91,40 @@ int main(int argc, char ** argv)
         close(sockfd);
         handle_error("listen");
     }
-
-    sem_init(&sem, 0, 0);
-
-
+	
     while(1)
     {
         client_addr_len = sizeof(client_addr);
         if((acceptfd = accept(sockfd, (struct sockaddr *)&client_addr, &client_addr_len)) < 0)
         {
-            perror("accept");
-            continue;
+			handle_warning("accept");
+			continue;
         }
        
         memset(client_ip, 0, sizeof(client_ip));
         inet_ntop(AF_INET,&client_addr.sin_addr,client_ip,sizeof(client_ip)); 
         printf("client:%s:%d\n",client_ip,ntohs(client_addr.sin_port));
 
-        if(pthread_create(&tid, NULL, thread_func, &acceptfd) != 0)
-        {
-			handle_warning("pthread_create");
-            close(acceptfd);
-            continue;
-        }
-
-        //if(sem == 0) block
-        //wait for sem != 0
-        //unblock, sem -= 1
-        sem_wait(&sem);
+		pid = fork();
+		if (pid > 0)	//parent
+		{
+			close(acceptfd);
+			continue;
+		} 
+		else if (pid == 0)	//child
+		{
+			close(sockfd);
+			handle_request(acceptfd);
+			exit(EXIT_SUCCESS);
+		} 
+		else
+		{
+			handle_warning("fork");
+			continue;
+		}
     }
     
-    sem_destroy(&sem);
     close(sockfd);
 
-    return 0;
+	exit(EXIT_SUCCESS);
 }
