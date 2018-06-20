@@ -19,29 +19,26 @@
 
 #define LISTEN_BACKLOG 50
 
-static void handle_request(int acceptfd)
+static ssize_t handle_request(int acceptfd)
 {
-    int i = 0;
-    ssize_t readret = 0;
-    char read_buff[256] = { 0 };
-    char write_buff[256] = { 0 };
-   
-    for(i = 0; i < 10; ++i)
-    {
-        memset(read_buff, 0, sizeof(read_buff));
-        readret = read(acceptfd, read_buff, sizeof(read_buff));
-        if(readret == 0)
-            break;
+	ssize_t readret = 0;
+	char read_buff[256] = { 0 };
+	char write_buff[256] = { 0 };
 
-        printf("progress id:%d, recv message:%s\n", getpid(), read_buff);
 
-        memset(write_buff, 0, sizeof(write_buff));
-        sprintf(write_buff, "This is server send message:%d", i);
-        write(acceptfd, write_buff, sizeof(write_buff));
-    }
-    printf("\n");
-    close(acceptfd);
-    return;
+	memset(read_buff, 0, sizeof(read_buff));
+	readret = read(acceptfd, read_buff, sizeof(read_buff));
+	if (readret == 0)
+		return readret;
+
+	printf("acceptfd:%d, recv message:%s\n", acceptfd, read_buff);
+
+	memset(write_buff, 0, sizeof(write_buff));
+	sprintf(write_buff, "This is server send message");
+	write(acceptfd, write_buff, sizeof(write_buff));
+
+	printf("\n");
+	return readret;
 }
 
 int main(int argc, char ** argv)
