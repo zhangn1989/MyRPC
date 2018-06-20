@@ -18,15 +18,6 @@
 
 #define LISTEN_BACKLOG 50
 
-static void grim_reaper(int sig)
-{
-	int saved_error = errno;
-	while (waitpid(-1, NULL, WNOHANG) >= 0)
-		continue;
-
-	errno = saved_error;
-}
-
 static void handle_request(int acceptfd)
 {
     int i = 0;
@@ -66,12 +57,6 @@ int main(int argc, char ** argv)
     memset(&server_addr, 0, sizeof(server_addr));
     memset(&client_addr, 0, sizeof(client_addr));
 
-	sigemptyset(&sa.sa_mask); 
-	sa.sa_flags = SA_RESTART;
-	sa.sa_handler = grim_reaper;
-	if(sigaction(SIGCHLD, &sa, NULL) < 0)
-		handle_error("sigaction");
-
     if((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
         handle_error("socket");
 
@@ -105,23 +90,7 @@ int main(int argc, char ** argv)
         inet_ntop(AF_INET,&client_addr.sin_addr,client_ip,sizeof(client_ip)); 
         printf("client:%s:%d\n",client_ip,ntohs(client_addr.sin_port));
 
-		pid = fork();
-		if (pid > 0)	//parent
-		{
-			close(acceptfd);
-			continue;
-		} 
-		else if (pid == 0)	//child
-		{
-			close(sockfd);
-			handle_request(acceptfd);
-			exit(EXIT_SUCCESS);
-		} 
-		else
-		{
-			handle_warning("fork");
-			continue;
-		}
+
     }
     
     close(sockfd);
