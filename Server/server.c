@@ -3,9 +3,10 @@
 #include <string.h>
 #include <errno.h>
 
-#include <signal.h>
 #include <semaphore.h>
 #include <unistd.h>
+#include <sys/time.h>
+#include <sys/select.h>
 #include <sys/types.h>          /* See NOTES */
 #include <sys/wait.h>
 #include <sys/socket.h>
@@ -45,11 +46,9 @@ static void handle_request(int acceptfd)
 
 int main(int argc, char ** argv)
 {
-	pid_t pid;
     int sockfd = 0;
     int acceptfd = 0;
     socklen_t client_addr_len = 0;
-	struct sigaction sa;
     struct sockaddr_in server_addr, client_addr;
 
     char client_ip[16] = { 0 };
