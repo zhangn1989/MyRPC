@@ -11,6 +11,7 @@
 #include <arpa/inet.h>
 
 #include "public_head.h"
+#include "fileio.h"
 
 #define LISTEN_BACKLOG 50
 

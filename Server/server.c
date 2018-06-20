@@ -37,7 +37,7 @@ static void handle_request(int acceptfd)
     for(i = 0; i < 10; ++i)
     {
         memset(read_buff, 0, sizeof(read_buff));
-        readret = readn(acceptfd, read_buff, sizeof(read_buff));
+        readret = read(acceptfd, read_buff, sizeof(read_buff));
         if(readret == 0)
             break;
 
@@ -45,7 +45,7 @@ static void handle_request(int acceptfd)
 
         memset(write_buff, 0, sizeof(write_buff));
         sprintf(write_buff, "This is server send message:%d", i);
-        writen(acceptfd, write_buff, sizeof(write_buff));
+        write(acceptfd, write_buff, sizeof(write_buff));
     }
     printf("\n");
     close(acceptfd);
