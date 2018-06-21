@@ -11,7 +11,7 @@ SOURCES := $(foreach x,${SRC_DIR},\
        $(addprefix  ${x}/*,${SFIX}) ) )
 #SOURCES = $(wildcard *.c)  
 OBJECTS = $(patsubst %.c, %.o, $(SOURCES))  
-TARGET = client
+TARGET = client1
 
 first: all
 
