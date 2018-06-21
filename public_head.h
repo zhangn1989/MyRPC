@@ -1,6 +1,7 @@
 #ifndef __PUBLIC_HEAD_H
 #define __PUBLIC_HEAD_H
 
+#include <errno.h>
 #include "log.h"
 
 #define handle_warning(msg) \
@@ -14,5 +15,9 @@
             "file:%s line:%d errorno:%d usrmsg:%s", \
             __FILE__, __LINE__, errno, msg); \
             exit(errno); } while (0)
+
+typedef int bool;
+#define true	1
+#define false	0
 
 #endif  //__PUBLIC_HEAD_H

@@ -15,41 +15,68 @@
 #include "public_head.h"
 
 #define LISTEN_BACKLOG 50
+#define QUEUE_MAX	100
+#define THREAD_COUNT	3
 
-sem_t sem;
+static int g;
+static int clientfd[QUEUE_MAX];
+static int *client_start;
+static int *client_end;
 
-void *thread_func(void *arg)
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+
+void thread_func111(int acceptfd, int i)
 {
-    int acceptfd = *(int *)arg;
-
-    //sem += 1
-    sem_post(&sem);
-
-    int i = 0;
     ssize_t readret = 0;
     char read_buff[256] = { 0 };
     char write_buff[256] = { 0 };
    
-    for(i = 0; i < 10; ++i)
-    {
-        memset(read_buff, 0, sizeof(read_buff));
-        readret = read(acceptfd, read_buff, sizeof(read_buff));
-        if(readret == 0)
-            break;
+	while (1)
+	{
+		memset(read_buff, 0, sizeof(read_buff));
+		readret = read(acceptfd, read_buff, sizeof(read_buff));
+		if (readret == 0)
+			break;
 
-        printf("thread id:%lu, recv message:%s\n", pthread_self(), read_buff);
+		printf("thread id:%lu, recv message:%s\n", pthread_self(), read_buff);
 
-        memset(write_buff, 0, sizeof(write_buff));
-        sprintf(write_buff, "This is server send message:%d", i);
-        write(acceptfd, write_buff, sizeof(write_buff));
-    }
+		memset(write_buff, 0, sizeof(write_buff));
+		sprintf(write_buff, "This is server send message:%d", i);
+		write(acceptfd, write_buff, sizeof(write_buff));
+	}
+
     printf("\n");
     close(acceptfd);
-    return NULL;
+    return;
 }
+
+void *thread_func(void *arg)
+{
+	int fd, i;
+	while (1)
+	{
+		pthread_mutex_lock(&mutex);
+		if (client_start >= client_end)
+		{
+			pthread_cond_wait(&cond, &mutex);
+		}
+
+		i = g;
+		fd = *client_start;
+		g++;
+		*client_start = -1;
+		client_start++;
+		pthread_mutex_unlock(&mutex);
+		if(fd > 0)
+			thread_func111(fd, g);
+	}
+}
+
 
 int main(int argc, char ** argv)
 {
+	int i = 0;
     int sockfd = 0;
     int acceptfd = 0;
     socklen_t client_addr_len = 0;
@@ -57,7 +84,10 @@ int main(int argc, char ** argv)
 
     char client_ip[16] = { 0 };
 
-    pthread_t tid;
+	pthread_t tids[THREAD_COUNT];
+
+	g = 0;
+	client_start = client_end = clientfd;
 
     memset(&server_addr, 0, sizeof(server_addr));
     memset(&client_addr, 0, sizeof(client_addr));
@@ -82,8 +112,19 @@ int main(int argc, char ** argv)
         handle_error("listen");
     }
 
-    sem_init(&sem, 0, 0);
+	for (i = 0; i < QUEUE_MAX; ++i)
+	{
+		clientfd[i] = -1;
+	}
 
+	for (i = 0; i < THREAD_COUNT; ++i)
+	{
+		if (pthread_create(tids + i, NULL, thread_func, NULL) != 0)
+		{
+			close(sockfd);
+			handle_error("pthread_create");
+		}
+	}
 
     while(1)
     {
@@ -98,20 +139,13 @@ int main(int argc, char ** argv)
         inet_ntop(AF_INET,&client_addr.sin_addr,client_ip,sizeof(client_ip)); 
         printf("client:%s:%d\n",client_ip,ntohs(client_addr.sin_port));
 
-        if(pthread_create(&tid, NULL, thread_func, &acceptfd) != 0)
-        {
-			handle_warning("pthread_create");
-            close(acceptfd);
-            continue;
-        }
-
-        //if(sem == 0) block
-        //wait for sem != 0
-        //unblock, sem -= 1
-        sem_wait(&sem);
+	//	pthread_mutex_lock(&mutex);
+		*client_end = acceptfd;
+		client_end++;
+	//	pthread_mutex_unlock(&mutex);
+		pthread_cond_signal(&cond);
     }
     
-    sem_destroy(&sem);
     close(sockfd);
 
     return 0;

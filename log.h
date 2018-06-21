@@ -20,12 +20,12 @@ typedef enum {
 	SC_LOG_LEVEL_MAX,
 } log_level;
 
-inline FILE *open_logfile(const char *path)
+inline static FILE *open_logfile(const char *path)
 {
 	return fopen(path, "a+");
 }
 
-inline void write_logfile(log_level type, FILE *fp, const char *format, ...)
+inline static void write_logfile(log_level type, FILE *fp, const char *format, ...)
 {
 	char log[128];
 	va_list arg_list;
@@ -72,7 +72,7 @@ inline void write_logfile(log_level type, FILE *fp, const char *format, ...)
 	fprintf(fp, "\n");
 }
 
-inline void close_logfile(FILE *fp)
+inline static void close_logfile(FILE *fp)
 {
 	fclose(fp);
 }
