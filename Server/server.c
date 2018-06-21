@@ -17,6 +17,7 @@
 #include "fileio.h"
 
 #define LISTEN_BACKLOG 50
+#define MAX_PROGRESS	1
 
 static void grim_reaper(int sig)
 {
@@ -34,19 +35,19 @@ static void handle_request(int acceptfd)
     char read_buff[256] = { 0 };
     char write_buff[256] = { 0 };
    
-    for(i = 0; i < 10; ++i)
-    {
-        memset(read_buff, 0, sizeof(read_buff));
-        readret = read(acceptfd, read_buff, sizeof(read_buff));
-        if(readret == 0)
-            break;
+	while (1)
+	{
+		memset(read_buff, 0, sizeof(read_buff));
+		readret = read(acceptfd, read_buff, sizeof(read_buff));
+		if (readret == 0)
+			break;
 
-        printf("progress id:%d, recv message:%s\n", getpid(), read_buff);
+		printf("progress id:%d, recv message:%s\n", getpid(), read_buff);
 
-        memset(write_buff, 0, sizeof(write_buff));
-        sprintf(write_buff, "This is server send message:%d", i);
-        write(acceptfd, write_buff, sizeof(write_buff));
-    }
+		memset(write_buff, 0, sizeof(write_buff));
+		sprintf(write_buff, "This is server send message:%d", i);
+		write(acceptfd, write_buff, sizeof(write_buff));
+	}
     printf("\n");
     close(acceptfd);
     return;
@@ -54,6 +55,7 @@ static void handle_request(int acceptfd)
 
 int main(int argc, char ** argv)
 {
+	int i;
 	pid_t pid;
     int sockfd = 0;
     int acceptfd = 0;
@@ -91,38 +93,42 @@ int main(int argc, char ** argv)
         close(sockfd);
         handle_error("listen");
     }
-	
-    while(1)
-    {
-        client_addr_len = sizeof(client_addr);
-        if((acceptfd = accept(sockfd, (struct sockaddr *)&client_addr, &client_addr_len)) < 0)
-        {
-			handle_warning("accept");
-			continue;
-        }
-       
-        memset(client_ip, 0, sizeof(client_ip));
-        inet_ntop(AF_INET,&client_addr.sin_addr,client_ip,sizeof(client_ip)); 
-        printf("client:%s:%d\n",client_ip,ntohs(client_addr.sin_port));
 
+	for (i = 0; i < MAX_PROGRESS; ++i)
+	{
 		pid = fork();
 		if (pid > 0)	//parent
 		{
-			close(acceptfd);
-			continue;
-		} 
-		else if (pid == 0)	//child
-		{
-			close(sockfd);
-			handle_request(acceptfd);
-			exit(EXIT_SUCCESS);
-		} 
-		else
-		{
-			handle_warning("fork");
 			continue;
 		}
-    }
+		else if (pid == 0)	//child
+		{
+			break;
+		}
+		else
+		{
+			close(sockfd);
+			while (wait(NULL))
+				continue;
+			handle_error("fork");
+		}
+	}
+	
+	while (1)
+	{
+		client_addr_len = sizeof(client_addr);
+		if ((acceptfd = accept(sockfd, (struct sockaddr *)&client_addr, &client_addr_len)) < 0)
+		{
+			handle_warning("accept");
+			continue;
+		}
+
+		memset(client_ip, 0, sizeof(client_ip));
+		inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, sizeof(client_ip));
+		printf("client:%s:%d\n", client_ip, ntohs(client_addr.sin_port));
+
+		handle_request(acceptfd);
+	}
     
     close(sockfd);
 
