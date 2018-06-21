@@ -124,7 +124,7 @@ int main(int argc, char ** argv)
 				continue;
 		}
         
-		for (i = 0; i < clientlen; ++i)
+		for (i = 1; i < clientlen; ++i)
 		{
 			if (clientfd[i].fd < 0)
 				continue;
