@@ -4,7 +4,6 @@
 #include <errno.h>
 
 #include <signal.h>
-#include <semaphore.h>
 #include <unistd.h>
 #include <sys/types.h>          /* See NOTES */
 #include <sys/wait.h>
@@ -15,7 +14,6 @@
 #include <arpa/inet.h>
 
 #include "public_head.h"
-#include "fileio.h"
 
 #define LISTEN_BACKLOG 50
 #define MAX_PROGRESS	1
@@ -135,7 +133,7 @@ int main(int argc, char ** argv)
 	
 	while (1)
 	{
-		ready = epoll_wait(epfd, evlist, MAX_EVENTS, 0);
+		ready = epoll_wait(epfd, evlist, MAX_EVENTS, -1);
 		if (ready < 0)
 		{
 			if (errno == EINTR)
