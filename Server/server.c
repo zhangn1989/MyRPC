@@ -4,7 +4,6 @@
 #include <errno.h>
 
 #include <pthread.h>
-#include <semaphore.h>
 #include <unistd.h>
 #include <sys/types.h>          /* See NOTES */
 #include <sys/socket.h>
@@ -18,7 +17,6 @@
 #define QUEUE_MAX	100
 #define THREAD_COUNT	3
 
-static int g;
 static int clientfd[QUEUE_MAX];
 static int *client_start;
 static int *client_end;
@@ -26,8 +24,9 @@ static int *client_end;
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 
-void thread_func111(int acceptfd, int i)
+void handle_request(int acceptfd)
 {
+	int i = 0; 
     ssize_t readret = 0;
     char read_buff[256] = { 0 };
     char write_buff[256] = { 0 };
@@ -42,7 +41,7 @@ void thread_func111(int acceptfd, int i)
 		printf("thread id:%lu, recv message:%s\n", pthread_self(), read_buff);
 
 		memset(write_buff, 0, sizeof(write_buff));
-		sprintf(write_buff, "This is server send message:%d", i);
+		sprintf(write_buff, "This is server send message:%d", i++);
 		write(acceptfd, write_buff, sizeof(write_buff));
 	}
 
@@ -53,7 +52,7 @@ void thread_func111(int acceptfd, int i)
 
 void *thread_func(void *arg)
 {
-	int fd, i;
+	int fd;
 	while (1)
 	{
 		pthread_mutex_lock(&mutex);
@@ -62,14 +61,12 @@ void *thread_func(void *arg)
 			pthread_cond_wait(&cond, &mutex);
 		}
 
-		i = g;
 		fd = *client_start;
-		g++;
 		*client_start = -1;
 		client_start++;
 		pthread_mutex_unlock(&mutex);
 		if(fd > 0)
-			thread_func111(fd, g);
+			handle_request(fd);
 	}
 }
 
@@ -86,7 +83,6 @@ int main(int argc, char ** argv)
 
 	pthread_t tids[THREAD_COUNT];
 
-	g = 0;
 	client_start = client_end = clientfd;
 
     memset(&server_addr, 0, sizeof(server_addr));

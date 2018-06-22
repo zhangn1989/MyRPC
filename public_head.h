@@ -16,8 +16,4 @@
             __FILE__, __LINE__, errno, msg); \
             exit(errno); } while (0)
 
-typedef int bool;
-#define true	1
-#define false	0
-
 #endif  //__PUBLIC_HEAD_H
