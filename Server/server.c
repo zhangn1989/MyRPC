@@ -3,12 +3,9 @@
 #include <string.h>
 #include <errno.h>
 
-#include <semaphore.h>
 #include <unistd.h>
 #include <sys/time.h>
-#include <sys/select.h>
 #include <sys/types.h>          /* See NOTES */
-#include <sys/wait.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netinet/ip.h> /* superset of previous */
