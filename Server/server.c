@@ -34,19 +34,20 @@ static void handle_request(int acceptfd)
     char read_buff[256] = { 0 };
     char write_buff[256] = { 0 };
    
-    for(i = 0; i < 10; ++i)
-    {
-        memset(read_buff, 0, sizeof(read_buff));
-        readret = read(acceptfd, read_buff, sizeof(read_buff));
-        if(readret == 0)
-            break;
+	while (1)
+	{
+		memset(read_buff, 0, sizeof(read_buff));
+		readret = read(acceptfd, read_buff, sizeof(read_buff));
+		if (readret == 0)
+			break;
 
-        printf("progress id:%d, recv message:%s\n", getpid(), read_buff);
+		printf("progress id:%d, recv message:%s\n", getpid(), read_buff);
 
-        memset(write_buff, 0, sizeof(write_buff));
-        sprintf(write_buff, "This is server send message:%d", i);
-        write(acceptfd, write_buff, sizeof(write_buff));
-    }
+		memset(write_buff, 0, sizeof(write_buff));
+		sprintf(write_buff, "This is server send message:%d", i++);
+		write(acceptfd, write_buff, sizeof(write_buff));
+	}
+    
     printf("\n");
     close(acceptfd);
     return;
