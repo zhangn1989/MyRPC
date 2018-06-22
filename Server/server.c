@@ -3,7 +3,6 @@
 #include <string.h>
 #include <errno.h>
 
-#include <semaphore.h>
 #include <unistd.h>
 #include <sys/time.h>
 #include <sys/select.h>
@@ -24,7 +23,6 @@ static ssize_t handle_request(int acceptfd)
     ssize_t readret = 0;
     char read_buff[256] = { 0 };
     char write_buff[256] = { 0 };
-   
    
 	memset(read_buff, 0, sizeof(read_buff));
 	readret = read(acceptfd, read_buff, sizeof(read_buff));
@@ -54,7 +52,6 @@ int main(int argc, char ** argv)
 	int i = 0, client_index = 0;
 	int ready = -1, nfds = -1;
 	fd_set rset;
-	struct timeval timeout = { 0, 0 };
 	FD_ZERO(&rset);
 
     memset(&server_addr, 0, sizeof(server_addr));
@@ -83,13 +80,10 @@ int main(int argc, char ** argv)
 	for (i = 0; i < FD_SETSIZE; ++i)
 		clientfd[i] = -1;
 
-	int fd_stdin = fileno(stdin);
-	nfds = fd_stdin > sockfd ? fd_stdin : sockfd;
+	nfds = sockfd;
 	
     while(1)
     {
-		timeout.tv_sec = 0;
-		timeout.tv_usec = 0;
 		FD_SET(sockfd, &rset);
 		for (i = 0; i < client_index; ++i)
 		{
@@ -99,7 +93,7 @@ int main(int argc, char ** argv)
 			FD_SET(clientfd[i], &rset);
 		}
 
-		ready = select(nfds + 1, &rset, NULL, NULL, &timeout);
+		ready = select(nfds + 1, &rset, NULL, NULL, NULL);
 		if (ready < 0)
 		{
 			if (errno == EINTR)
@@ -150,14 +144,6 @@ int main(int argc, char ** argv)
 				}
 			}
 		}
-
-// 		for (i = 0; i < client_index; ++i)
-// 		{
-// 			if (FD_ISSET(clientfd[i], &writefds))
-// 			{
-// 
-// 			}
-// 		}
     }
     
     close(sockfd);
