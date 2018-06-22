@@ -30,19 +30,19 @@ void *thread_func(void *arg)
     char read_buff[256] = { 0 };
     char write_buff[256] = { 0 };
    
-    for(i = 0; i < 10; ++i)
-    {
-        memset(read_buff, 0, sizeof(read_buff));
-        readret = read(acceptfd, read_buff, sizeof(read_buff));
-        if(readret == 0)
-            break;
+	while (1)
+	{
+		memset(read_buff, 0, sizeof(read_buff));
+		readret = read(acceptfd, read_buff, sizeof(read_buff));
+		if (readret == 0)
+			break;
 
-        printf("thread id:%lu, recv message:%s\n", pthread_self(), read_buff);
+		printf("thread id:%lu, recv message:%s\n", pthread_self(), read_buff);
 
-        memset(write_buff, 0, sizeof(write_buff));
-        sprintf(write_buff, "This is server send message:%d", i);
-        write(acceptfd, write_buff, sizeof(write_buff));
-    }
+		memset(write_buff, 0, sizeof(write_buff));
+		sprintf(write_buff, "This is server send message:%d", i++);
+		write(acceptfd, write_buff, sizeof(write_buff));
+	}
     printf("\n");
     close(acceptfd);
     return NULL;
@@ -105,6 +105,7 @@ int main(int argc, char ** argv)
             continue;
         }
 
+		//wait thread start
         //if(sem == 0) block
         //wait for sem != 0
         //unblock, sem -= 1
