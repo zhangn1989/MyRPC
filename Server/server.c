@@ -86,7 +86,7 @@ int main(int argc, char ** argv)
 	
     while(1)
     {
-		ready = poll(clientfd, clientlen, 0);
+		ready = poll(clientfd, clientlen, -1);
 		if (ready < 0)
 		{
 			if(errno == EINTR)
