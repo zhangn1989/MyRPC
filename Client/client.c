@@ -48,7 +48,8 @@ int main(int argc, char ** argv)
         readret = read(sockfd, read_buff, sizeof(read_buff));
         if(readret == 0)
             break;
-        printf("%s\n", read_buff);       
+        printf("%s\n", read_buff);   
+		sleep(1);
     }
 
     close(sockfd);

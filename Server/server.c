@@ -62,19 +62,20 @@ int main(int argc, char ** argv)
         inet_ntop(AF_INET,&client_addr.sin_addr,client_ip,sizeof(client_ip)); 
         printf("client:%s:%d\n",client_ip,ntohs(client_addr.sin_port));
 
-        for(i = 0; i < 10; ++i)
-        {
-            memset(read_buff, 0, sizeof(read_buff));
-            readret = read(acceptfd, read_buff, sizeof(read_buff));
-            if(readret == 0)
-                break;
-            
-            printf("%s\n", read_buff);
+		i = 0;
+		while (1)
+		{
+			memset(read_buff, 0, sizeof(read_buff));
+			readret = read(acceptfd, read_buff, sizeof(read_buff));
+			if (readret == 0)
+				break;
 
-            memset(write_buff, 0, sizeof(write_buff));
-            sprintf(write_buff, "This is server send message:%d", i);
-            write(acceptfd, write_buff, sizeof(write_buff));
-        }
+			printf("%s\n", read_buff);
+
+			memset(write_buff, 0, sizeof(write_buff));
+			sprintf(write_buff, "This is server send message:%d", i++);
+			write(acceptfd, write_buff, sizeof(write_buff));
+		}
       
         printf("\n");
         close(acceptfd);
