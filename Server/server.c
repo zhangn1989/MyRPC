@@ -56,9 +56,10 @@ void *thread_func(void *arg)
 	while (1)
 	{
 		pthread_mutex_lock(&mutex);
-		if (client_start >= client_end)
+		while (client_start >= client_end)
 		{
 			pthread_cond_wait(&cond, &mutex);
+			continue;
 		}
 
 		fd = *client_start;
