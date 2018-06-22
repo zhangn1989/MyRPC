@@ -4,7 +4,6 @@
 #include <errno.h>
 
 #include <signal.h>
-#include <semaphore.h>
 #include <unistd.h>
 #include <sys/types.h>          /* See NOTES */
 #include <sys/wait.h>
@@ -14,7 +13,6 @@
 #include <arpa/inet.h>
 
 #include "public_head.h"
-#include "fileio.h"
 
 #define LISTEN_BACKLOG 50
 #define MAX_PROGRESS	1
