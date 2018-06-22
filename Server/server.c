@@ -9,6 +9,7 @@
 #include <sys/types.h>          /* See NOTES */
 #include <sys/wait.h>
 #include <sys/socket.h>
+#include <sys/epoll.h>
 #include <netinet/in.h>
 #include <netinet/ip.h> /* superset of previous */
 #include <arpa/inet.h>
@@ -18,6 +19,7 @@
 
 #define LISTEN_BACKLOG 50
 #define MAX_PROGRESS	1
+#define MAX_EVENTS	5
 
 static void grim_reaper(int sig)
 {
@@ -28,29 +30,26 @@ static void grim_reaper(int sig)
 	errno = saved_error;
 }
 
-static void handle_request(int acceptfd)
+static ssize_t handle_request(int acceptfd)
 {
-    int i = 0;
-    ssize_t readret = 0;
-    char read_buff[256] = { 0 };
-    char write_buff[256] = { 0 };
-   
-	while (1)
-	{
-		memset(read_buff, 0, sizeof(read_buff));
-		readret = read(acceptfd, read_buff, sizeof(read_buff));
-		if (readret == 0)
-			break;
+	ssize_t readret = 0;
+	char read_buff[256] = { 0 };
+	char write_buff[256] = { 0 };
 
-		printf("progress id:%d, recv message:%s\n", getpid(), read_buff);
 
-		memset(write_buff, 0, sizeof(write_buff));
-		sprintf(write_buff, "This is server send message:%d", i);
-		write(acceptfd, write_buff, sizeof(write_buff));
-	}
-    printf("\n");
-    close(acceptfd);
-    return;
+	memset(read_buff, 0, sizeof(read_buff));
+	readret = read(acceptfd, read_buff, sizeof(read_buff));
+	if (readret == 0)
+		return readret;
+
+	printf("acceptfd:%d, recv message:%s\n", acceptfd, read_buff);
+
+	memset(write_buff, 0, sizeof(write_buff));
+	sprintf(write_buff, "This is server send message");
+	write(acceptfd, write_buff, sizeof(write_buff));
+
+	printf("\n");
+	return readret;
 }
 
 int main(int argc, char ** argv)
@@ -64,6 +63,10 @@ int main(int argc, char ** argv)
     struct sockaddr_in server_addr, client_addr;
 
     char client_ip[16] = { 0 };
+
+	int epfd = -1, ready = -1;
+	struct epoll_event ev;
+	struct epoll_event evlist[MAX_EVENTS];
 
     memset(&server_addr, 0, sizeof(server_addr));
     memset(&client_addr, 0, sizeof(client_addr));
@@ -113,21 +116,79 @@ int main(int argc, char ** argv)
 			handle_error("fork");
 		}
 	}
+
+	epfd = epoll_create1(0);
+	if (epfd < 0)
+	{
+		close(sockfd);
+		handle_error("epoll_create1");
+	}
+
+	ev.data.fd = sockfd;
+	ev.events = EPOLLIN;
+	if (epoll_ctl(epfd, EPOLL_CTL_ADD, sockfd, &ev) < 0)
+	{
+		close(sockfd);
+		close(epfd);
+		handle_error("epoll_ctl");
+	}
 	
 	while (1)
 	{
-		client_addr_len = sizeof(client_addr);
-		if ((acceptfd = accept(sockfd, (struct sockaddr *)&client_addr, &client_addr_len)) < 0)
+		ready = epoll_wait(epfd, evlist, MAX_EVENTS, 0);
+		if (ready < 0)
 		{
-			handle_warning("accept");
+			if (errno == EINTR)
+				continue;
+
+			close(sockfd);
+			close(epfd);
+			handle_error("epoll_wait");
+		}
+		else if (ready == 0)
+		{
 			continue;
 		}
 
-		memset(client_ip, 0, sizeof(client_ip));
-		inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, sizeof(client_ip));
-		printf("client:%s:%d\n", client_ip, ntohs(client_addr.sin_port));
+		for (i = 0; i < ready; ++i)
+		{
+			if (evlist[i].events != EPOLLIN)
+				continue;
 
-		handle_request(acceptfd);
+			if (evlist[i].data.fd == sockfd)
+			{
+				client_addr_len = sizeof(client_addr);
+				if ((acceptfd = accept(sockfd, (struct sockaddr *)&client_addr, &client_addr_len)) < 0)
+				{
+					handle_warning("accept");
+					continue;
+				}
+
+				memset(client_ip, 0, sizeof(client_ip));
+				inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, sizeof(client_ip));
+				printf("client:%s:%d\n", client_ip, ntohs(client_addr.sin_port));
+
+				ev.data.fd = acceptfd;
+				ev.events = EPOLLIN;
+				if (epoll_ctl(epfd, EPOLL_CTL_ADD, acceptfd, &ev) < 0)
+				{
+					close(acceptfd);
+					handle_warning("epoll_ctl");
+					continue;
+				}
+			}
+			else
+			{
+				if (handle_request(evlist[i].data.fd) <= 0)
+				{
+					ev.data.fd = evlist[i].data.fd;
+					ev.events = EPOLLIN;
+					if (epoll_ctl(epfd, EPOLL_CTL_DEL, evlist[i].data.fd, &ev) < 0)
+						handle_warning("epoll_ctl");
+					close(evlist[i].data.fd);
+				}
+			}
+		}
 	}
     
     close(sockfd);
