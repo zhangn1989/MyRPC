@@ -3,7 +3,6 @@
 #include <string.h>
 #include <errno.h>
 
-#include <semaphore.h>
 #include <unistd.h>
 #include <sys/time.h>
 #include <sys/types.h>  
@@ -94,7 +93,7 @@ int main(int argc, char ** argv)
 
     while(1)
     {
-		ready = epoll_wait(epfd, evlist, MAX_EVENTS, 0);
+		ready = epoll_wait(epfd, evlist, MAX_EVENTS, -1);
 		if (ready < 0)
 		{
 			if (errno == EINTR)
