@@ -1,4 +1,4 @@
-DIRS = Server Client
+DIRS = Server Client Discovery
 
 all: subdirs  
   

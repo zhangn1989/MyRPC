@@ -14,17 +14,18 @@
 #include "public_head.h"
 
 #define LISTEN_BACKLOG 50
-#define QUEUE_MAX	100
 #define THREAD_COUNT	3
 
 static int clientfd[QUEUE_MAX];
 static int *client_start;
 static int *client_end;
 
+static serverinfo selfinfo;
+
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 
-void handle_request(int acceptfd)
+static void handle_request(int acceptfd)
 {
 	int i = 0; 
     ssize_t readret = 0;
@@ -50,7 +51,7 @@ void handle_request(int acceptfd)
     return;
 }
 
-void *thread_func(void *arg)
+static void *thread_func(void *arg)
 {
 	int fd;
 	while (1)
@@ -69,14 +70,107 @@ void *thread_func(void *arg)
 		if(fd > 0)
 			handle_request(fd);
 	}
+	return NULL;
 }
 
+static void register_service(in_port_t port)
+{
+	int sockfd = 0;
+	struct sockaddr_in server_addr;
+
+	message *sendmsg, *recvmsg;
+
+	sendmsg = malloc(sizeof(message) + sizeof(serverinfo));
+	if(!sendmsg)
+		handle_error("register_service");
+
+	recvmsg = malloc(sizeof(message) + sizeof(unsigned int));
+	if (!recvmsg)
+	{
+		free(sendmsg);
+		handle_error("register_service");
+	}
+
+	sendmsg->cmd = cmd_register;
+	sendmsg->arglen = sizeof(serverinfo);
+	selfinfo.port = port;
+	get_local_ip(IF_NAME, selfinfo.ip);
+	memcpy(sendmsg->argv, &selfinfo, sizeof(serverinfo));
+
+	memset(&server_addr, 0, sizeof(server_addr));
+	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+	{
+		free(sendmsg);
+		free(recvmsg);
+		handle_error("socket");
+	}
+
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(DIS_PORT);
+	inet_pton(sockfd, DIS_IP, &server_addr.sin_addr.s_addr);
+
+	if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
+	{
+		free(sendmsg);
+		free(recvmsg);
+		close(sockfd);
+		handle_error("connect");
+	}
+
+	writen(sockfd, sendmsg, sizeof(message) + sizeof(serverinfo));
+	if(readn(sockfd, recvmsg, sizeof(message) + sizeof(unsigned int)) != 0)
+		memcpy(&selfinfo.id, recvmsg->argv, sizeof(unsigned int));
+	close(sockfd);
+
+	free(sendmsg);
+	free(recvmsg);
+}
+
+static void unregister_service()
+{
+	int sockfd = 0;
+	struct sockaddr_in server_addr;
+
+	message *sendmsg;
+
+	sendmsg = malloc(sizeof(message) + sizeof(unsigned int));
+	if (!sendmsg)
+		handle_error("register_service");
+
+	sendmsg->cmd = cmd_unregister;
+	sendmsg->arglen = sizeof(unsigned int);
+	memcpy(sendmsg->argv, &selfinfo.id, sendmsg->arglen);
+
+	memset(&server_addr, 0, sizeof(server_addr));
+	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+	{
+		free(sendmsg);
+		handle_error("socket");
+	}
+
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(DIS_PORT);
+	inet_pton(sockfd, DIS_IP, &server_addr.sin_addr.s_addr);
+
+	if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
+	{
+		free(sendmsg);
+		close(sockfd);
+		handle_error("connect");
+	}
+
+	writen(sockfd, sendmsg, sizeof(message) + sizeof(unsigned int));
+	
+	close(sockfd);
+	free(sendmsg);
+}
 
 int main(int argc, char ** argv)
 {
 	int i = 0;
     int sockfd = 0;
     int acceptfd = 0;
+	in_port_t port = 0;
     socklen_t client_addr_len = 0;
     struct sockaddr_in server_addr, client_addr;
 
@@ -86,21 +180,27 @@ int main(int argc, char ** argv)
 
 	client_start = client_end = clientfd;
 
+	if (argc < 2)
+		handle_error("argc");
+
+	port = atoi(argv[1]);
+
     memset(&server_addr, 0, sizeof(server_addr));
     memset(&client_addr, 0, sizeof(client_addr));
 
-    if((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-        handle_error("socket");
+	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+	{
+		unregister_service();
+		handle_error("socket");
+	}
 
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(9527);
+    server_addr.sin_port = htons(port);
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     if(bind(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
     {
-		char buff[256] = { 0 };
         close(sockfd);
-		strerror_r(errno, buff, sizeof(buff));
-        handle_error("bind");
+		handle_error("bind");
     }
 
     if(listen(sockfd, LISTEN_BACKLOG) < 0)
@@ -121,6 +221,13 @@ int main(int argc, char ** argv)
 			close(sockfd);
 			handle_error("pthread_create");
 		}
+	}
+
+	register_service(port);
+	if (selfinfo.id == -1)
+	{
+		close(sockfd);
+		handle_error("register_service");
 	}
 
     while(1)
@@ -145,5 +252,6 @@ int main(int argc, char ** argv)
     
     close(sockfd);
 
+	unregister_service();
     return 0;
 }
