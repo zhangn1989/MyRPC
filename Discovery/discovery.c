@@ -298,7 +298,7 @@ int main(int argc, char ** argv)
 	for (i = 0; i < QUEUE_MAX; ++i)
 	{
 		serverlist[i].client_count = 0;
-		serverlist[i].weight = WEIGHT_BOTTOM;
+		serverlist[i].weight = WEIGHT_TOP;
 		serverlist[i].info.id = -1;
 	}
 
