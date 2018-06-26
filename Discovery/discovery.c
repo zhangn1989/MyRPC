@@ -42,8 +42,8 @@ void cmd_connect_func(int acceptfd, unsigned char *argv, unsigned int arglen)
 {
 	int i = 0;
 	int id = 0;
-	int sum = 0;
-	int maxsum = 0;
+	int sub = 0;
+	int maxsub = 0;
 	message *sendmsg = NULL;
 
 	sendmsg = malloc(sizeof(message) + sizeof(serverinfo));
@@ -61,11 +61,11 @@ void cmd_connect_func(int acceptfd, unsigned char *argv, unsigned int arglen)
 		if(serverlist[i].info.id < 0)
 			continue;
 
-		sum = serverlist[i].client_count + serverlist[i].weight;
-		if (sum > maxsum)
+		sub = serverlist[i].weight - serverlist[i].client_count;
+		if (sub > maxsub)
 		{
 			id = i;
-			maxsum = sum;
+			maxsub = sub;
 		}
 	}
 
