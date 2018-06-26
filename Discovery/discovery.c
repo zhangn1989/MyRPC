@@ -156,6 +156,10 @@ void cmd_unregister_func(int acceptfd, unsigned char *argv, unsigned int arglen)
 	memcpy(&id, argv, arglen);
 
 	//É¾³ý¸Ã·þÎñÆ÷
+	serverlist[id].client_count = 0;
+	serverlist[id].weight = WEIGHT_TOP;
+	memset(&serverlist[id].info, 0, sizeof(serverinfo));
+	serverlist[id].info.id = -1;
 }
 
 void cmd_heart_func(int acceptfd, unsigned char *argv, unsigned int arglen)
