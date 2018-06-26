@@ -3,12 +3,10 @@
 #include <string.h>
 #include <errno.h>
 
-#include <signal.h>
+#include <pthread.h>
 #include <unistd.h>
 #include <sys/types.h>          /* See NOTES */
-#include <sys/wait.h>
 #include <sys/socket.h>
-#include <sys/epoll.h>
 #include <netinet/in.h>
 #include <netinet/ip.h> /* superset of previous */
 #include <arpa/inet.h>
@@ -16,77 +14,193 @@
 #include "public_head.h"
 
 #define LISTEN_BACKLOG 50
-#define MAX_PROGRESS	1
-#define MAX_EVENTS	5
+#define THREAD_COUNT	3
 
-static void grim_reaper(int sig)
+static int clientfd[QUEUE_MAX];
+static int *client_start;
+static int *client_end;
+
+static serverinfo selfinfo;
+
+static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+
+static void handle_request(int acceptfd)
 {
-	int saved_error = errno;
-	while (waitpid(-1, NULL, WNOHANG) >= 0)
-		continue;
+	int i = 0; 
+    ssize_t readret = 0;
+    char read_buff[256] = { 0 };
+    char write_buff[256] = { 0 };
+   
+	while (1)
+	{
+		memset(read_buff, 0, sizeof(read_buff));
+		readret = read(acceptfd, read_buff, sizeof(read_buff));
+		if (readret == 0)
+			break;
 
-	errno = saved_error;
+		printf("thread id:%lu, recv message:%s\n", pthread_self(), read_buff);
+
+		memset(write_buff, 0, sizeof(write_buff));
+		sprintf(write_buff, "This is server send message:%d", i++);
+		write(acceptfd, write_buff, sizeof(write_buff));
+	}
+
+    printf("\n");
+    close(acceptfd);
+    return;
 }
 
-static ssize_t handle_request(int acceptfd)
+static void *thread_func(void *arg)
 {
-	ssize_t readret = 0;
-	char read_buff[256] = { 0 };
-	char write_buff[256] = { 0 };
+	int fd;
+	while (1)
+	{
+		pthread_mutex_lock(&mutex);
+		while (client_start >= client_end)
+		{
+			pthread_cond_wait(&cond, &mutex);
+			continue;
+		}
 
+		fd = *client_start;
+		*client_start = -1;
+		client_start++;
+		pthread_mutex_unlock(&mutex);
+		if(fd > 0)
+			handle_request(fd);
+	}
+	return NULL;
+}
 
-	memset(read_buff, 0, sizeof(read_buff));
-	readret = read(acceptfd, read_buff, sizeof(read_buff));
-	if (readret == 0)
-		return readret;
+static void register_service(in_port_t port)
+{
+	int sockfd = 0;
+	struct sockaddr_in server_addr;
 
-	printf("acceptfd:%d, recv message:%s\n", acceptfd, read_buff);
+	message *sendmsg, *recvmsg;
 
-	memset(write_buff, 0, sizeof(write_buff));
-	sprintf(write_buff, "This is server send message");
-	write(acceptfd, write_buff, sizeof(write_buff));
+	sendmsg = malloc(sizeof(message) + sizeof(serverinfo));
+	if(!sendmsg)
+		handle_error("register_service");
 
-	printf("\n");
-	return readret;
+	recvmsg = malloc(sizeof(message) + sizeof(unsigned int));
+	if (!recvmsg)
+	{
+		free(sendmsg);
+		handle_error("register_service");
+	}
+
+	sendmsg->cmd = cmd_register;
+	sendmsg->arglen = sizeof(serverinfo);
+	selfinfo.port = port;
+	get_local_ip(IF_NAME, selfinfo.ip);
+	memcpy(sendmsg->argv, &selfinfo, sizeof(serverinfo));
+
+	memset(&server_addr, 0, sizeof(server_addr));
+	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+	{
+		free(sendmsg);
+		free(recvmsg);
+		handle_error("socket");
+	}
+
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(DIS_PORT);
+	inet_pton(sockfd, DIS_IP, &server_addr.sin_addr.s_addr);
+
+	if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
+	{
+		free(sendmsg);
+		free(recvmsg);
+		close(sockfd);
+		handle_error("connect");
+	}
+
+	writen(sockfd, sendmsg, sizeof(message) + sizeof(serverinfo));
+	if(readn(sockfd, recvmsg, sizeof(message) + sizeof(unsigned int)) != 0)
+		memcpy(&selfinfo.id, recvmsg->argv, sizeof(unsigned int));
+	close(sockfd);
+
+	free(sendmsg);
+	free(recvmsg);
+}
+
+static void unregister_service()
+{
+	int sockfd = 0;
+	struct sockaddr_in server_addr;
+
+	message *sendmsg;
+
+	sendmsg = malloc(sizeof(message) + sizeof(unsigned int));
+	if (!sendmsg)
+		handle_error("register_service");
+
+	sendmsg->cmd = cmd_unregister;
+	sendmsg->arglen = sizeof(unsigned int);
+	memcpy(sendmsg->argv, &selfinfo.id, sendmsg->arglen);
+
+	memset(&server_addr, 0, sizeof(server_addr));
+	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+	{
+		free(sendmsg);
+		handle_error("socket");
+	}
+
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_port = htons(DIS_PORT);
+	inet_pton(sockfd, DIS_IP, &server_addr.sin_addr.s_addr);
+
+	if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
+	{
+		free(sendmsg);
+		close(sockfd);
+		handle_error("connect");
+	}
+
+	writen(sockfd, sendmsg, sizeof(message) + sizeof(unsigned int));
+	
+	close(sockfd);
+	free(sendmsg);
 }
 
 int main(int argc, char ** argv)
 {
-	int i;
-	pid_t pid;
+	int i = 0;
     int sockfd = 0;
     int acceptfd = 0;
+	in_port_t port = 0;
     socklen_t client_addr_len = 0;
-	struct sigaction sa;
     struct sockaddr_in server_addr, client_addr;
 
     char client_ip[16] = { 0 };
 
-	int epfd = -1, ready = -1;
-	struct epoll_event ev;
-	struct epoll_event evlist[MAX_EVENTS];
+	pthread_t tids[THREAD_COUNT];
+
+	client_start = client_end = clientfd;
+
+	if (argc < 2)
+		handle_error("argc");
+
+	port = atoi(argv[1]);
 
     memset(&server_addr, 0, sizeof(server_addr));
     memset(&client_addr, 0, sizeof(client_addr));
 
-	sigemptyset(&sa.sa_mask); 
-	sa.sa_flags = SA_RESTART;
-	sa.sa_handler = grim_reaper;
-	if(sigaction(SIGCHLD, &sa, NULL) < 0)
-		handle_error("sigaction");
-
-    if((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-        handle_error("socket");
+	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+	{
+		unregister_service();
+		handle_error("socket");
+	}
 
     server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(9527);
+    server_addr.sin_port = htons(port);
     server_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     if(bind(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
     {
-		char buff[256] = { 0 };
         close(sockfd);
-		strerror_r(errno, buff, sizeof(buff));
-        handle_error("bind");
+		handle_error("bind");
     }
 
     if(listen(sockfd, LISTEN_BACKLOG) < 0)
@@ -95,101 +209,49 @@ int main(int argc, char ** argv)
         handle_error("listen");
     }
 
-	for (i = 0; i < MAX_PROGRESS; ++i)
+	for (i = 0; i < QUEUE_MAX; ++i)
 	{
-		pid = fork();
-		if (pid > 0)	//parent
-		{
-			continue;
-		}
-		else if (pid == 0)	//child
-		{
-			break;
-		}
-		else
+		clientfd[i] = -1;
+	}
+
+	for (i = 0; i < THREAD_COUNT; ++i)
+	{
+		if (pthread_create(tids + i, NULL, thread_func, NULL) != 0)
 		{
 			close(sockfd);
-			while (wait(NULL))
-				continue;
-			handle_error("fork");
+			handle_error("pthread_create");
 		}
 	}
 
-	epfd = epoll_create1(0);
-	if (epfd < 0)
+	register_service(port);
+	if (selfinfo.id == -1)
 	{
 		close(sockfd);
-		handle_error("epoll_create1");
+		handle_error("register_service");
 	}
 
-	ev.data.fd = sockfd;
-	ev.events = EPOLLIN;
-	if (epoll_ctl(epfd, EPOLL_CTL_ADD, sockfd, &ev) < 0)
-	{
-		close(sockfd);
-		close(epfd);
-		handle_error("epoll_ctl");
-	}
-	
-	while (1)
-	{
-		ready = epoll_wait(epfd, evlist, MAX_EVENTS, -1);
-		if (ready < 0)
-		{
-			if (errno == EINTR)
-				continue;
+    while(1)
+    {
+        client_addr_len = sizeof(client_addr);
+        if((acceptfd = accept(sockfd, (struct sockaddr *)&client_addr, &client_addr_len)) < 0)
+        {
+            perror("accept");
+            continue;
+        }
+       
+        memset(client_ip, 0, sizeof(client_ip));
+        inet_ntop(AF_INET,&client_addr.sin_addr,client_ip,sizeof(client_ip)); 
+        printf("client:%s:%d\n",client_ip,ntohs(client_addr.sin_port));
 
-			close(sockfd);
-			close(epfd);
-			handle_error("epoll_wait");
-		}
-		else if (ready == 0)
-		{
-			continue;
-		}
-
-		for (i = 0; i < ready; ++i)
-		{
-			if (evlist[i].events != EPOLLIN)
-				continue;
-
-			if (evlist[i].data.fd == sockfd)
-			{
-				client_addr_len = sizeof(client_addr);
-				if ((acceptfd = accept(sockfd, (struct sockaddr *)&client_addr, &client_addr_len)) < 0)
-				{
-					handle_warning("accept");
-					continue;
-				}
-
-				memset(client_ip, 0, sizeof(client_ip));
-				inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, sizeof(client_ip));
-				printf("client:%s:%d\n", client_ip, ntohs(client_addr.sin_port));
-
-				ev.data.fd = acceptfd;
-				ev.events = EPOLLIN;
-				if (epoll_ctl(epfd, EPOLL_CTL_ADD, acceptfd, &ev) < 0)
-				{
-					close(acceptfd);
-					handle_warning("epoll_ctl");
-					continue;
-				}
-			}
-			else
-			{
-				if (handle_request(evlist[i].data.fd) <= 0)
-				{
-					ev.data.fd = evlist[i].data.fd;
-					ev.events = EPOLLIN;
-					if (epoll_ctl(epfd, EPOLL_CTL_DEL, evlist[i].data.fd, &ev) < 0)
-						handle_warning("epoll_ctl");
-					close(evlist[i].data.fd);
-				}
-			}
-		}
-	}
+	//	pthread_mutex_lock(&mutex);
+		*client_end = acceptfd;
+		client_end++;
+	//	pthread_mutex_unlock(&mutex);
+		pthread_cond_signal(&cond);
+    }
     
     close(sockfd);
 
-	exit(EXIT_SUCCESS);
+	unregister_service();
+    return 0;
 }

@@ -1,6 +1,6 @@
 CC = gcc  
 LINK = gcc  
-CFLAGS = -g -Wall -rdynamic -I../ 
+CFLAGS = -g -Wall -rdynamic -lpthread -I../ 
 LIBS =
 
 SRC_DIR = . ..
@@ -11,7 +11,7 @@ SOURCES := $(foreach x,${SRC_DIR},\
        $(addprefix  ${x}/*,${SFIX}) ) )
 #SOURCES = $(wildcard *.c)  
 OBJECTS = $(patsubst %.c, %.o, $(SOURCES))  
-TARGET = client1
+TARGET = discovery1
 
 first: all
 
@@ -20,8 +20,7 @@ first: all
 			  
 all: $(TARGET)  
 
-$(TARGET): $(OBJECTS)
-	@echo $(TARGET)
+$(TARGET): $(OBJECTS)  
 	$(LINK) $(CFLAGS) $(LIBS) -o ../$(TARGET) $(OBJECTS)   
 
 .PHONY: clean
