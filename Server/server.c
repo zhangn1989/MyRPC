@@ -84,7 +84,7 @@ static void register_service(in_port_t port)
 	if(!sendmsg)
 		handle_error("register_service");
 
-	recvmsg = malloc(sizeof(message) + sizeof(unsigned int));
+	recvmsg = malloc(sizeof(message) + sizeof(int));
 	if (!recvmsg)
 	{
 		free(sendmsg);
@@ -118,8 +118,8 @@ static void register_service(in_port_t port)
 	}
 
 	writen(sockfd, sendmsg, sizeof(message) + sizeof(serverinfo));
-	if(readn(sockfd, recvmsg, sizeof(message) + sizeof(unsigned int)) != 0)
-		memcpy(&selfinfo.id, recvmsg->argv, sizeof(unsigned int));
+	if(readn(sockfd, recvmsg, sizeof(message) + sizeof(int)) != 0)
+		memcpy(&selfinfo.id, recvmsg->argv, sizeof(int));
 	close(sockfd);
 
 	free(sendmsg);
@@ -133,12 +133,12 @@ static void unregister_service()
 
 	message *sendmsg;
 
-	sendmsg = malloc(sizeof(message) + sizeof(unsigned int));
+	sendmsg = malloc(sizeof(message) + sizeof(int));
 	if (!sendmsg)
 		handle_error("register_service");
 
 	sendmsg->cmd = cmd_unregister;
-	sendmsg->arglen = sizeof(unsigned int);
+	sendmsg->arglen = sizeof(int);
 	memcpy(sendmsg->argv, &selfinfo.id, sendmsg->arglen);
 
 	memset(&server_addr, 0, sizeof(server_addr));
@@ -159,7 +159,7 @@ static void unregister_service()
 		handle_error("connect");
 	}
 
-	writen(sockfd, sendmsg, sizeof(message) + sizeof(unsigned int));
+	writen(sockfd, sendmsg, sizeof(message) + sizeof(int));
 	
 	close(sockfd);
 	free(sendmsg);
@@ -192,6 +192,12 @@ int main(int argc, char ** argv)
 	{
 		unregister_service();
 		handle_error("socket");
+	}
+
+	int val = 1;
+	if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val)) < 0)
+	{
+		handle_error("setsockopt()");
 	}
 
     server_addr.sin_family = AF_INET;

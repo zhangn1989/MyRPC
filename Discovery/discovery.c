@@ -22,8 +22,8 @@
 
 typedef struct __register_server
 {
-	unsigned int weight;
-	unsigned int client_count;
+	int weight;
+	int client_count;
 	serverinfo info;
 }register_server;
 
@@ -38,7 +38,7 @@ static pthread_mutex_t servermutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 
-void cmd_connect_func(int acceptfd, unsigned char *argv, unsigned int arglen)
+void cmd_connect_func(int acceptfd, unsigned char *argv, int arglen)
 {
 	int i = 0;
 	int id = 0;
@@ -73,35 +73,45 @@ void cmd_connect_func(int acceptfd, unsigned char *argv, unsigned int arglen)
 	writen(acceptfd, sendmsg, sizeof(message) + sizeof(serverinfo));
 }
 
-void cmd_backconnect_func(int acceptfd, unsigned char *argv, unsigned int arglen)
+void cmd_backconnect_func(int acceptfd, unsigned char *argv, int arglen)
 {
+	connectback cb;
 	int back = 0;
-	unsigned int id = 0;
+	int id = 0;
 
-	memcpy(&back, argv, sizeof(back));
-	memcpy(&id, argv + sizeof(back), sizeof(id));
+	memcpy(&cb, argv, sizeof(connectback));
+	back = cb.back;
+	id = cb.id;
 	if (back)
 	{
 		//给id服务器加权，增加连接数
 		pthread_mutex_lock(&servermutex);
-		WEIGHT_ADD(serverlist[id].weight);
-		serverlist[id].client_count++;
+	//	WEIGHT_ADD(serverlist[cb.id].weight);
+		{
+			if ((serverlist[id].weight) <= (WEIGHT_TOP / 2))
+				(serverlist[id].weight) *= 2;
+		}
+		serverlist[cb.id].client_count++;
 		pthread_mutex_unlock(&servermutex);
 	}
 	else
 	{
 		//给id服务器减权，并重新发送新的服务器
 		pthread_mutex_lock(&servermutex);
-		WEIGHT_SUB(serverlist[id].weight);
+	//	WEIGHT_SUB(serverlist[cb.id].weight);
+		{
+			if ((serverlist[id].weight) > WEIGHT_BOTTOM)
+				(serverlist[id].weight) /= 2;
+		}
 		pthread_mutex_unlock(&servermutex);
 		cmd_connect_func(acceptfd, argv, arglen);
 	}
 }
 
-void cmd_unconnect_func(int acceptfd, unsigned char *argv, unsigned int arglen)
+void cmd_unconnect_func(int acceptfd, unsigned char *argv, int arglen)
 {
-	unsigned int id = 0;
-	memcpy(&id, argv, sizeof(unsigned int));
+	int id = 0;
+	memcpy(&id, argv, sizeof(int));
 
 	//找到对应id的服务器，对其进行减连接数操作
 	pthread_mutex_lock(&servermutex);
@@ -109,11 +119,11 @@ void cmd_unconnect_func(int acceptfd, unsigned char *argv, unsigned int arglen)
 	pthread_mutex_unlock(&servermutex);
 }
 
-void cmd_register_func(int acceptfd, unsigned char *argv, unsigned int arglen)
+void cmd_register_func(int acceptfd, unsigned char *argv, int arglen)
 {
 	
 	int i;
-	unsigned int id = 0;
+	int id = 0;
 	message *msg = NULL;
 
 	pthread_mutex_lock(&servermutex);
@@ -133,13 +143,13 @@ void cmd_register_func(int acceptfd, unsigned char *argv, unsigned int arglen)
 	else
 		id = i;
 
-	msg = malloc(sizeof(message) + sizeof(unsigned int));
+	msg = malloc(sizeof(message) + sizeof(int));
 	if (msg)
 	{
 		msg->cmd = cmd_register;
-		msg->arglen = sizeof(unsigned int);
+		msg->arglen = sizeof(int);
 		memcpy(msg->argv, &id, msg->arglen);
-		writen(acceptfd, msg, sizeof(message) + sizeof(unsigned int));
+		writen(acceptfd, msg, sizeof(message) + sizeof(int));
 		free(msg);
 	}
 	else
@@ -150,9 +160,9 @@ void cmd_register_func(int acceptfd, unsigned char *argv, unsigned int arglen)
 	return;
 }
 
-void cmd_unregister_func(int acceptfd, unsigned char *argv, unsigned int arglen)
+void cmd_unregister_func(int acceptfd, unsigned char *argv, int arglen)
 {
-	unsigned int id = 0;
+	int id = 0;
 	memcpy(&id, argv, arglen);
 
 	//删除该服务器
@@ -162,7 +172,7 @@ void cmd_unregister_func(int acceptfd, unsigned char *argv, unsigned int arglen)
 	serverlist[id].info.id = -1;
 }
 
-void cmd_heart_func(int acceptfd, unsigned char *argv, unsigned int arglen)
+void cmd_heart_func(int acceptfd, unsigned char *argv, int arglen)
 {
 
 }
@@ -273,6 +283,12 @@ int main(int argc, char ** argv)
 	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
 	{
 		handle_error("socket");
+	}
+
+	int val = 1;
+	if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &val, sizeof(val)) < 0)
+	{
+		handle_error("setsockopt()");
 	}
 
 	server_addr.sin_family = AF_INET;

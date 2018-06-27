@@ -26,7 +26,7 @@ typedef enum
 
 typedef struct __serverinfo
 {
-	unsigned int id;
+	int id;
 	char ip[16];
 	in_port_t port;
 }serverinfo;
@@ -34,9 +34,15 @@ typedef struct __serverinfo
 typedef struct __messages
 {
 	command cmd;
-	unsigned int arglen;
+	int arglen;
 	unsigned char argv[0];
 }message;
+
+typedef struct __connectback
+{
+	int back;
+	int id;
+}connectback;
 
 #define handle_info(msg) \
         do { write_logfile(SC_LOG_INFO, stderr, \

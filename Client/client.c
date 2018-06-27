@@ -41,20 +41,22 @@ static int tryconnectserver(serverinfo *info)
 	return sockfd;
 }
 
-static void connectserver(int *confd, unsigned int *serverid)
+static void connectserver(int *confd, int *serverid)
 {
-	int back = 0;
 	int sockfd = -1;
 	message *sendmsg = NULL;
 	message *recvmsg = NULL;
 	message *backmsg = NULL;
 	serverinfo info;
+	connectback cb;
 	struct sockaddr_in server_addr;
 
 	if (!confd || !serverid)
 		return;
 
 	*confd = -1;
+	cb.id = -1;
+	cb.back = 0;
 
 	sendmsg = malloc(sizeof(message));
 	if (!sendmsg)
@@ -71,7 +73,7 @@ static void connectserver(int *confd, unsigned int *serverid)
 		return;
 	}
 
-	backmsg = malloc(sizeof(message) + sizeof(int) + sizeof(unsigned int));
+	backmsg = malloc(sizeof(message) + sizeof(connectback));
 	if (!backmsg)
 	{
 		free(recvmsg);
@@ -82,7 +84,7 @@ static void connectserver(int *confd, unsigned int *serverid)
 
 	memset(sendmsg, 0, sizeof(message));
 	memset(recvmsg, 0, sizeof(message) + sizeof(serverinfo));
-	memset(backmsg, 0, sizeof(message) + sizeof(int) + sizeof(unsigned int));
+	memset(backmsg, 0, sizeof(message) + sizeof(connectback));
 	memset(&info, 0, sizeof(serverinfo));
 	memset(&server_addr, 0, sizeof(server_addr));
 
@@ -90,7 +92,7 @@ static void connectserver(int *confd, unsigned int *serverid)
 	sendmsg->arglen = 0;
 
 	backmsg->cmd = cmd_backconnect;
-	backmsg->arglen = sizeof(int) + sizeof(unsigned int);
+	backmsg->arglen = sizeof(connectback);
 
 	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
 	{
@@ -130,18 +132,18 @@ static void connectserver(int *confd, unsigned int *serverid)
 		{
 			*serverid = info.id;
 			//这个服务器可以了
-			back = 1;
-			memcpy(backmsg->argv, &back, sizeof(int));
-			memcpy(backmsg->argv + sizeof(int), &info.id, sizeof(unsigned int));
-			writen(sockfd, backmsg, sizeof(message) + sizeof(int));
+			cb.back = 1;
+			cb.id = info.id;
+			memcpy(backmsg->argv, &cb, sizeof(connectback));
+			writen(sockfd, backmsg, sizeof(message) + sizeof(connectback));
 			break;
 		}
 
 		//这个服务器不行，再给换一个
-		back = 0;
-		memcpy(backmsg->argv, &back, sizeof(int));
-		memcpy(backmsg->argv + sizeof(int), &info.id, sizeof(unsigned int));
-		writen(sockfd, backmsg, sizeof(message) + sizeof(int));
+		cb.back = 0;
+		cb.id = info.id;
+		memcpy(backmsg->argv, &cb, sizeof(connectback));
+		writen(sockfd, backmsg, sizeof(message) + sizeof(connectback));
 
 		sleep(30);
 	}
@@ -152,7 +154,7 @@ static void connectserver(int *confd, unsigned int *serverid)
 	return;
 }
 
-static void unconnectserver(int confd, unsigned int serverid)
+static void unconnectserver(int confd, int serverid)
 {
 	close(confd);
 
@@ -160,7 +162,7 @@ static void unconnectserver(int confd, unsigned int serverid)
 	message *sendmsg = NULL;
 	struct sockaddr_in server_addr;
 
-	sendmsg = malloc(sizeof(message) + sizeof(unsigned int));
+	sendmsg = malloc(sizeof(message) + sizeof(int));
 	if (!sendmsg)
 	{
 		handle_warning("malloc");
@@ -171,7 +173,7 @@ static void unconnectserver(int confd, unsigned int serverid)
 	memset(&server_addr, 0, sizeof(server_addr));
 
 	sendmsg->cmd = cmd_unconnect;
-	sendmsg->arglen = sizeof(unsigned int);
+	sendmsg->arglen = sizeof(int);
 	memcpy(sendmsg->argv, &serverid, sendmsg->arglen);
 
 	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
@@ -191,14 +193,14 @@ static void unconnectserver(int confd, unsigned int serverid)
 		return;
 	}
 
-	writen(sockfd, sendmsg, sizeof(message) + sizeof(unsigned int));
+	writen(sockfd, sendmsg, sizeof(message) + sizeof(int));
 }
 
 int main(int argc, char ** argv)
 {
     int i = 0;
 	int sockfd = -1;
-	unsigned int serverid = 0;
+	int serverid = 0;
 	ssize_t readret = 0;
 
 	char read_buff[256] = { 0 };
