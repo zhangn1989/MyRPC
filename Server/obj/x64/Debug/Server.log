@@ -1,0 +1,11 @@
+﻿C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\Common7\IDE\VC\VCTargets\Application Type\Linux\1.0\Linux.Makefile.Targets(197,5): warning : Clean command not configured. Skipping...
+  Invoking 'make clean', working directory: '/home/zhangn/project/MyRPC/Server'
+  rm -f  ./server.o  ../fileio.o   ../server1  
+  
+C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\Common7\IDE\VC\VCTargets\Application Type\Linux\1.0\Linux.Makefile.Targets(180,5): warning : Rebuild command not configured. Skipping...
+  Invoking 'make clean && make', working directory: '/home/zhangn/project/MyRPC/Server'
+  rm -f  ./server.o  ../fileio.o   ../server1  
+  gcc   -c -g -Wall -rdynamic -lpthread -I../  -o server.o server.c  
+  gcc   -c -g -Wall -rdynamic -lpthread -I../  -o ../fileio.o ../fileio.c  
+  gcc   -g -Wall -rdynamic -lpthread -I../   -o ../server1  ./server.o  ../fileio.o     
+  

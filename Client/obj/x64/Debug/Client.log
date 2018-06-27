@@ -1,0 +1,5 @@
+﻿C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\Common7\IDE\VC\VCTargets\Application Type\Linux\1.0\Linux.Makefile.Targets(163,5): warning : Build command not configured. Skipping...
+  Invoking 'make', working directory: '/home/zhangn/project/MyRPC/Client'
+  client1
+  gcc   -g -Wall -rdynamic -I../   -o ../client1  ./client.o  ../fileio.o     
+  
