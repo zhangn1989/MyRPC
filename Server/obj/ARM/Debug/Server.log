@@ -1,6 +1,0 @@
-﻿C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\Common7\IDE\VC\VCTargets\Application Type\Linux\1.0\Linux.Makefile.Targets(163,5): warning : Build command not configured. Skipping...
-  Invoking 'make', working directory: '/home/zhangn/project/MyRPC/QW4E'
-  bash: line 0: cd: /home/zhangn/project/MyRPC/QW4E: 没有那个文件或目录
-  make: *** 没有指明目标并且找不到 makefile。 停止。
-  
-C:\Program Files (x86)\Microsoft Visual Studio\2017\Enterprise\Common7\IDE\VC\VCTargets\Application Type\Linux\1.0\Linux.Makefile.Targets(166,5): error : make exited with code 2, please see the Output Window - Build output for more details (NOTE: the build output verbosity might need to be changed in Tools Options to see more information in the Output Window).
