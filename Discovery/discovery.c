@@ -86,11 +86,7 @@ void cmd_backconnect_func(int acceptfd, unsigned char *argv, int arglen)
 	{
 		//给id服务器加权，增加连接数
 		pthread_mutex_lock(&servermutex);
-	//	WEIGHT_ADD(serverlist[cb.id].weight);
-		{
-			if ((serverlist[id].weight) <= (WEIGHT_TOP / 2))
-				(serverlist[id].weight) *= 2;
-		}
+		WEIGHT_ADD(serverlist[cb.id].weight);
 		serverlist[cb.id].client_count++;
 		pthread_mutex_unlock(&servermutex);
 	}
@@ -98,11 +94,7 @@ void cmd_backconnect_func(int acceptfd, unsigned char *argv, int arglen)
 	{
 		//给id服务器减权，并重新发送新的服务器
 		pthread_mutex_lock(&servermutex);
-	//	WEIGHT_SUB(serverlist[cb.id].weight);
-		{
-			if ((serverlist[id].weight) > WEIGHT_BOTTOM)
-				(serverlist[id].weight) /= 2;
-		}
+		WEIGHT_SUB(serverlist[cb.id].weight);
 		pthread_mutex_unlock(&servermutex);
 		cmd_connect_func(acceptfd, argv, arglen);
 	}
