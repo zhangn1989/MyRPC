@@ -237,6 +237,12 @@ static void handle_request(int acceptfd)
 		default:
 			break;
 		}
+
+		if (argv)
+		{
+			free(argv);
+			argv = NULL;
+		}
 	}
 	close(acceptfd);
 	return ;
