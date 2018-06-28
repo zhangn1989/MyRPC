@@ -98,6 +98,7 @@ static void connectserver(int *confd, int *serverid)
 	{
 		free(sendmsg);
 		free(recvmsg);
+		free(backmsg);
 		handle_warning("socket");
 		return;
 	}
@@ -110,6 +111,7 @@ static void connectserver(int *confd, int *serverid)
 	{
 		free(sendmsg);
 		free(recvmsg);
+		free(backmsg);
 		close(sockfd);
 		handle_warning("socket");
 		return;
@@ -121,6 +123,7 @@ static void connectserver(int *confd, int *serverid)
 		{
 			free(sendmsg);
 			free(recvmsg);
+			free(backmsg);
 			close(sockfd);
 			handle_warning("readn");
 			return;
@@ -150,6 +153,7 @@ static void connectserver(int *confd, int *serverid)
 
 	free(sendmsg);
 	free(recvmsg);
+	free(backmsg);
 	close(sockfd);
 	return;
 }
@@ -162,19 +166,8 @@ static void unconnectserver(int confd, int serverid)
 	message *sendmsg = NULL;
 	struct sockaddr_in server_addr;
 
-	sendmsg = malloc(sizeof(message) + sizeof(int));
-	if (!sendmsg)
-	{
-		handle_warning("malloc");
-		return;
-	}
-
 	memset(sendmsg, 0, sizeof(message));
 	memset(&server_addr, 0, sizeof(server_addr));
-
-	sendmsg->cmd = cmd_unconnect;
-	sendmsg->arglen = sizeof(int);
-	memcpy(sendmsg->argv, &serverid, sendmsg->arglen);
 
 	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
 	{
@@ -193,7 +186,20 @@ static void unconnectserver(int confd, int serverid)
 		return;
 	}
 
+	sendmsg = malloc(sizeof(message) + sizeof(int));
+	if (!sendmsg)
+	{
+		handle_warning("malloc");
+		return;
+	}
+
+	sendmsg->cmd = cmd_unconnect;
+	sendmsg->arglen = sizeof(int);
+	memcpy(sendmsg->argv, &serverid, sendmsg->arglen);
+
 	writen(sockfd, sendmsg, sizeof(message) + sizeof(int));
+
+	free(sendmsg);
 }
 
 int main(int argc, char ** argv)
