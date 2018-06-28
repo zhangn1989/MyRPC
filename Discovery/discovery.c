@@ -71,18 +71,15 @@ void cmd_connect_func(int acceptfd, unsigned char *argv, int arglen)
 
 	memcpy(sendmsg->argv, &serverlist[id].info, sizeof(serverinfo));
 	writen(acceptfd, sendmsg, sizeof(message) + sizeof(serverinfo));
+	if (sendmsg) free(sendmsg);
 }
 
 void cmd_backconnect_func(int acceptfd, unsigned char *argv, int arglen)
 {
 	connectback cb;
-	int back = 0;
-	int id = 0;
 
 	memcpy(&cb, argv, sizeof(connectback));
-	back = cb.back;
-	id = cb.id;
-	if (back)
+	if (cb.back)
 	{
 		//给id服务器加权，增加连接数
 		pthread_mutex_lock(&servermutex);
