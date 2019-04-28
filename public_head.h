@@ -13,36 +13,13 @@
 
 #define IF_NAME	"eth0"
 
-typedef enum
+typedef struct __Messages
 {
-	cmd_connect = 0,
-	cmd_backconnect,
-	cmd_unconnect,
-	cmd_register,
-	cmd_unregister,
-	cmd_heart,
-	cmd_max
-} command;
+	int arg1;
+	int arg2;
+	int result;
+}Message;
 
-typedef struct __serverinfo
-{
-	int id;
-	char ip[16];
-	in_port_t port;
-}serverinfo;
-
-typedef struct __messages
-{
-	command cmd;
-	int arglen;
-	unsigned char argv[0];
-}message;
-
-typedef struct __connectback
-{
-	int back;
-	int id;
-}connectback;
 
 #define handle_info(msg) \
         do { write_logfile(SC_LOG_INFO, stderr, \
