@@ -11,7 +11,7 @@ SOURCES := $(foreach x,${SRC_DIR},\
        $(addprefix  ${x}/*,${SFIX}) ) )
 #SOURCES = $(wildcard *.c)  
 OBJECTS = $(patsubst %.c, %.o, $(SOURCES))  
-TARGET = client1
+TARGET = client
 
 first: all
 
@@ -22,9 +22,15 @@ all: $(TARGET)
 
 $(TARGET): $(OBJECTS)
 	@echo $(TARGET)
-	$(LINK) $(CFLAGS) $(LIBS) -o ../$(TARGET) $(OBJECTS)   
+	$(LINK) $(CFLAGS) $(LIBS) -o $(TARGET) $(OBJECTS)   
 
-.PHONY: clean
+.PHONY: install uninstall clean
+
+install:
+	cp $(TARGET) ..
+
+uninstall:
+	rm -rf ../$(TARGET)
 
 clean:  
-	rm -f $(OBJECTS) ../$(TARGET)  
+	rm -f $(OBJECTS) $(TARGET)  

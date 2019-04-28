@@ -13,225 +13,77 @@
 #include "public_head.h"
 #include "fileio.h"
 
-#define LISTEN_BACKLOG 50
-
-static int tryconnectserver(serverinfo *info)
-{
-	int sockfd = -1;
-	struct sockaddr_in server_addr;
-	memset(&server_addr, 0, sizeof(server_addr));
-
-	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-	{
-		handle_warning("socket");
-		return -1;
-	}
-
-	server_addr.sin_family = AF_INET;
-	server_addr.sin_port = htons(info->port);
-	inet_pton(sockfd, info->ip, &server_addr.sin_addr.s_addr);
-
-	if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
-	{
-		close(sockfd);
-		handle_warning("socket");
-		return -1;
-	}
-
-	return sockfd;
-}
-
-static void connectserver(int *confd, int *serverid)
-{
-	int sockfd = -1;
-	message *sendmsg = NULL;
-	message *recvmsg = NULL;
-	message *backmsg = NULL;
-	serverinfo info;
-	connectback cb;
-	struct sockaddr_in server_addr;
-
-	if (!confd || !serverid)
-		return;
-
-	*confd = -1;
-	cb.id = -1;
-	cb.back = 0;
-
-	sendmsg = malloc(sizeof(message));
-	if (!sendmsg)
-	{
-		handle_warning("malloc");
-		return;
-	}
-
-	recvmsg = malloc(sizeof(message) + sizeof(serverinfo));
-	if (!recvmsg)
-	{
-		free(sendmsg);
-		handle_warning("malloc");
-		return;
-	}
-
-	backmsg = malloc(sizeof(message) + sizeof(connectback));
-	if (!backmsg)
-	{
-		free(recvmsg);
-		free(sendmsg);
-		handle_warning("malloc");
-		return;
-	}
-
-	memset(sendmsg, 0, sizeof(message));
-	memset(recvmsg, 0, sizeof(message) + sizeof(serverinfo));
-	memset(backmsg, 0, sizeof(message) + sizeof(connectback));
-	memset(&info, 0, sizeof(serverinfo));
-	memset(&server_addr, 0, sizeof(server_addr));
-
-	sendmsg->cmd = cmd_connect;
-	sendmsg->arglen = 0;
-
-	backmsg->cmd = cmd_backconnect;
-	backmsg->arglen = sizeof(connectback);
-
-	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-	{
-		free(sendmsg);
-		free(recvmsg);
-		free(backmsg);
-		handle_warning("socket");
-		return;
-	}
-
-	server_addr.sin_family = AF_INET;
-	server_addr.sin_port = htons(DIS_PORT);
-	inet_pton(sockfd, DIS_IP, &server_addr.sin_addr.s_addr);
-
-	if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
-	{
-		free(sendmsg);
-		free(recvmsg);
-		free(backmsg);
-		close(sockfd);
-		handle_warning("socket");
-		return;
-	}
-	while (1)
-	{
-		writen(sockfd, sendmsg, sizeof(message));
-		if (readn(sockfd, recvmsg, sizeof(message) + sizeof(serverinfo)) == 0)
-		{
-			free(sendmsg);
-			free(recvmsg);
-			free(backmsg);
-			close(sockfd);
-			handle_warning("readn");
-			return;
-		}
-
-		memcpy(&info, recvmsg->argv, sizeof(serverinfo));
-		*confd = tryconnectserver(&info);
-		if (*confd > 0)
-		{
-			*serverid = info.id;
-			//这个服务器可以了
-			cb.back = 1;
-			cb.id = info.id;
-			memcpy(backmsg->argv, &cb, sizeof(connectback));
-			writen(sockfd, backmsg, sizeof(message) + sizeof(connectback));
-			break;
-		}
-
-		//这个服务器不行，再给换一个
-		cb.back = 0;
-		cb.id = info.id;
-		memcpy(backmsg->argv, &cb, sizeof(connectback));
-		writen(sockfd, backmsg, sizeof(message) + sizeof(connectback));
-
-		sleep(30);
-	}
-
-	free(sendmsg);
-	free(recvmsg);
-	free(backmsg);
-	close(sockfd);
-	return;
-}
-
-static void unconnectserver(int confd, int serverid)
-{
-	close(confd);
-
-	int sockfd = -1;
-	message *sendmsg = NULL;
-	struct sockaddr_in server_addr;
-
-	memset(sendmsg, 0, sizeof(message));
-	memset(&server_addr, 0, sizeof(server_addr));
-
-	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
-	{
-		handle_warning("socket");
-		return;
-	}
-
-	server_addr.sin_family = AF_INET;
-	server_addr.sin_port = htons(DIS_PORT);
-	inet_pton(sockfd, DIS_IP, &server_addr.sin_addr.s_addr);
-
-	if (connect(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0)
-	{
-		close(sockfd);
-		handle_warning("socket");
-		return;
-	}
-
-	sendmsg = malloc(sizeof(message) + sizeof(int));
-	if (!sendmsg)
-	{
-		handle_warning("malloc");
-		return;
-	}
-
-	sendmsg->cmd = cmd_unconnect;
-	sendmsg->arglen = sizeof(int);
-	memcpy(sendmsg->argv, &serverid, sendmsg->arglen);
-
-	writen(sockfd, sendmsg, sizeof(message) + sizeof(int));
-
-	free(sendmsg);
-}
+#define LISTEN_BACKLOG	50
+#define ADD_IP		"127.0.0.1"
+#define ADD_PORT	10086
+#define MUL_IP		ADD_IP
+#define MUL_PORT	10010
 
 int main(int argc, char ** argv)
 {
-    int i = 0;
-	int sockfd = -1;
-	int serverid = 0;
+	int i = 0;
+	int sockfd = 0;
 	ssize_t readret = 0;
+	Message addMessage, mulMessage;
+	struct sockaddr_in addServer_addr;
+	struct sockaddr_in mulServer_addr;
 
-	char read_buff[256] = { 0 };
-	char write_buff[256] = { 0 };
+	memset(&addServer_addr, 0, sizeof(addServer_addr));
+	memset(&mulServer_addr, 0, sizeof(mulServer_addr));
+	memset(&addMessage, 0, sizeof(Message));
+	memset(&mulMessage, 0, sizeof(Message));
 
-	connectserver(&sockfd, &serverid);
-	if (sockfd < 0)
-		handle_error("connectserver");
+	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+		handle_error("socket");
 
-	for (i = 0; i < 10; ++i)
+	addServer_addr.sin_family = AF_INET;
+	addServer_addr.sin_port = htons(ADD_PORT);
+	inet_pton(sockfd, ADD_IP, &addServer_addr.sin_addr.s_addr);
+
+	addMessage.arg1 = 3;
+	addMessage.arg2 = 5;
+	if (connect(sockfd, (struct sockaddr*) & addServer_addr, sizeof(addServer_addr)) < 0)
 	{
-		memset(write_buff, 0, sizeof(write_buff));
-		sprintf(write_buff, "This is client send message:%d", i);
-		write(sockfd, write_buff, strlen(write_buff) + 1);
-
-		memset(read_buff, 0, sizeof(read_buff));
-		readret = read(sockfd, read_buff, sizeof(read_buff));
-		if (readret == 0)
-			break;
-		printf("%s\n", read_buff);
-
-		sleep(1);
+		close(sockfd);
+		handle_error("connect");
 	}
 
-	unconnectserver(sockfd, serverid);
+//	while (1)
+	{
+		write(sockfd, &addMessage, sizeof(Message));
+		readret = read(sockfd, &addMessage, sizeof(Message));
+		printf("%d + %d = %d\n", addMessage.arg1, addMessage.arg2, addMessage.result);
+// 		if (readret == 0)
+// 			break;
+		sleep(1);
+	}
+	close(sockfd);
 
-    return 0;
+	if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+		handle_error("socket");
+
+	mulServer_addr.sin_family = AF_INET;
+	mulServer_addr.sin_port = htons(MUL_PORT);
+	inet_pton(sockfd, MUL_IP, &mulServer_addr.sin_addr.s_addr);
+
+	mulMessage.arg1 = 3;
+	mulMessage.arg2 = 5;
+	if (connect(sockfd, (struct sockaddr*) & mulServer_addr, sizeof(mulServer_addr)) < 0)
+	{
+		close(sockfd);
+		handle_error("connect");
+	}
+
+//	while (1)
+	{
+		write(sockfd, &mulMessage, sizeof(Message));
+		readret = read(sockfd, &mulMessage, sizeof(Message));
+		printf("%d x %d = %d\n", mulMessage.arg1, mulMessage.arg2, mulMessage.result);
+// 		if (readret == 0)
+// 			break;
+		sleep(1);
+	}
+	close(sockfd);
+
+	return 0;
 }
