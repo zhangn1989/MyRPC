@@ -16,6 +16,8 @@
 #define LISTEN_BACKLOG	50
 #define THREAD_COUNT	3
 #define LISTEN_PORT		10010
+#define ADD_IP		"127.0.0.1"
+#define ADD_PORT	10086
 
 static int clientfd[QUEUE_MAX];
 static int* client_start;
@@ -27,8 +29,12 @@ static pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
 static void handle_request(int acceptfd)
 {
 	ssize_t readret = 0;
-
 	Message message;
+
+	int i = 0;
+	int sockfd = 0;
+	Message addMessage;
+	struct sockaddr_in addServer_addr;
 
 	while (1)
 	{
@@ -39,7 +45,34 @@ static void handle_request(int acceptfd)
 
 		printf("thread id:%lu, recv operation:%d x %d\n",
 			pthread_self(), message.arg1, message.arg2);
-		message.result = message.arg1 * message.arg2;
+
+		memset(&addServer_addr, 0, sizeof(addServer_addr));
+		memset(&addMessage, 0, sizeof(Message));
+
+		if ((sockfd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+			handle_error("socket");
+
+		addServer_addr.sin_family = AF_INET;
+		addServer_addr.sin_port = htons(ADD_PORT);
+		inet_pton(sockfd, ADD_IP, &addServer_addr.sin_addr.s_addr);
+
+		if (connect(sockfd, (struct sockaddr*) & addServer_addr, sizeof(addServer_addr)) < 0)
+		{
+			close(sockfd);
+			handle_error("connect");
+		}
+
+		for(i = 0; i < message.arg2; ++i)
+		{
+			addMessage.arg1 = message.arg1;
+			addMessage.arg2 = addMessage.result;
+			write(sockfd, &addMessage, sizeof(Message));
+			readret = read(sockfd, &addMessage, sizeof(Message));
+			sleep(1);
+		}
+		close(sockfd);
+		message.result = addMessage.result;
+
 		write(acceptfd, &message, sizeof(message));
 	}
 

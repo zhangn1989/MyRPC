@@ -21,9 +21,7 @@
 
 int main(int argc, char ** argv)
 {
-	int i = 0;
 	int sockfd = 0;
-	ssize_t readret = 0;
 	Message addMessage, mulMessage;
 	struct sockaddr_in addServer_addr;
 	struct sockaddr_in mulServer_addr;
@@ -51,7 +49,7 @@ int main(int argc, char ** argv)
 //	while (1)
 	{
 		write(sockfd, &addMessage, sizeof(Message));
-		readret = read(sockfd, &addMessage, sizeof(Message));
+		read(sockfd, &addMessage, sizeof(Message));
 		printf("%d + %d = %d\n", addMessage.arg1, addMessage.arg2, addMessage.result);
 // 		if (readret == 0)
 // 			break;
@@ -77,7 +75,7 @@ int main(int argc, char ** argv)
 //	while (1)
 	{
 		write(sockfd, &mulMessage, sizeof(Message));
-		readret = read(sockfd, &mulMessage, sizeof(Message));
+		read(sockfd, &mulMessage, sizeof(Message));
 		printf("%d x %d = %d\n", mulMessage.arg1, mulMessage.arg2, mulMessage.result);
 // 		if (readret == 0)
 // 			break;
